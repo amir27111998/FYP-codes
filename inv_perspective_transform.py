@@ -16,5 +16,5 @@ def getTransformedImage(image, inp_points):
     dst_points = np.float32([[0, 0], [width, 0], [0, height], [height, width]])
     TRANSFORMATION = cv2.getPerspectiveTransform(np.float32(inp_points), dst_points)
     TRANSFORMED_IMAGE = cv2.warpPerspective(image, TRANSFORMATION, (width, height))
-    return TRANSFORMED_IMAGE
+    return {'IMAGE': TRANSFORMED_IMAGE, 'TRANSFORMATION': TRANSFORMATION}
 
