@@ -2,6 +2,7 @@ import sys
 import glob
 import os
 import cv2
+import math
 # ==============================================================================
 # -- Find CARLA module ---------------------------------------------------------
 # ==============================================================================
@@ -36,7 +37,8 @@ IM_HEIGHT = 480
 IM_WIDTH = 720
 FOV = 110
 
-STATIC_DISTANCES = [50, 40, 30, 20, 15, 10, 5, 3, 2, 1]
+STATIC_DISTANCES = [50, 40, 30, 20, 15, 10, 5, 3, 2, 1, 0.4, 0.2]
+BRAKES =           [0.04, 0.06, 0.02, 0.01, 0.01, 0.04, 0.06, 0.02, 0.01, 0.01, 0.01, 0.01]
 CO=0
 
 cv2.setNumThreads(10)
@@ -55,21 +57,33 @@ def distance_formula(length, px_per_meter):
     return distance
 
 
+def actual_distance(vehicle, obj2):
+    vehicle_location = vehicle.get_location()
+    object_location = obj2.get_location()
+    formula = math.sqrt((vehicle_location.x - object_location.x) ** 2 +
+                        (vehicle_location.y - object_location.y) ** 2 +
+                        (vehicle_location.z - object_location.z) ** 2)
+    return formula
+
 def decision_making(distance, status, current_velocity):
     if status:
-        target_velocity=carla.Vector3D(1, 10, 0)
-        if distance < 10.0 and distance > 5.0:
+        print('Distance: ', distance)
+        target_velocity=carla.Vector3D(5,5,0)
+        if distance < 10.1 and distance > 5.0:
             target_velocity = current_velocity*0.50
             print('Less than 10 m')
-        if distance < 5.1 and distance > 2.0:
-            target_velocity = current_velocity*0.50
+        elif distance < 5.1 and distance > 2.0:
+            target_velocity = current_velocity*0.65
             print('Less than 5 m')
-        if distance < 2.1:
+        elif distance < 2.1 and distance > 1.5:
             target_velocity = current_velocity*0.80
             print('Less than 2 m')
-        if distance < 1.5:
-            target_velocity = current_velocity * 0
+        elif distance < 1.6 and distance > 1.0:
+            target_velocity = current_velocity * 0.85
             print('Less than 1.5 m')
+        elif distance < 1.1 and distance > 0:
+            target_velocity = current_velocity * 0.94
+            print('Less than 1 m')
         return target_velocity
 
 
@@ -98,7 +112,7 @@ def destroy_all_actors(actors):
 
 try:
     client = carla.Client('localhost', 2000)
-    client.set_timeout(20)
+    client.set_timeout(10)
     world = client.get_world()
     blueprints = world.get_blueprint_library()
     current_map = world.get_map()
@@ -114,7 +128,7 @@ try:
     camera_rgb_blueprint.set_attribute('image_size_x', f'{IM_WIDTH}')
     camera_rgb_blueprint.set_attribute('image_size_y', f'{IM_HEIGHT}')
     camera_rgb_blueprint.set_attribute('fov', f'{FOV}')
-    vehicle = world.spawn_actor(vehicle_blueprint, spawn_points[0])
+    vehicle = world.spawn_actor(vehicle_blueprint, spawn_points[3])
     actors.append(vehicle)
     # Sensors In CAPS
     CAMERA_RGB = world.spawn_actor(
@@ -128,9 +142,11 @@ try:
     start=0
     # controls.brake=0.8
     # vehicle.apply_control(controls)
-    vehicle.set_target_velocity(carla.Vector3D(1,10,0))
-    brake = 0.1
-    while start <= 90:
+    # vehicle.set_target_velocity(carla.Vector3D(0,5,0))
+    # brake = 0.1
+
+    controls.throttle = 0.8
+    while start <= 30:
         # if start >= 15:
         #     controls.brake = 0
         #     # controls.reverse = True
@@ -138,11 +154,15 @@ try:
         #     vehicle.set_target_velocity(carla.Vector3D(-1, -1, -1))
         #
         # vehicle.apply_control(controls)
+        # print(decision_making(STATIC_DISTANCES[CO], 1, vehicle.get_velocity()))
+        # vehicle.set_target_velocity(decision_making(STATIC_DISTANCES[CO], 1, vehicle.get_velocity()))
+        # if start%10==0:
+        #     controls.brake=BRAKES[CO]
 
-        print(decision_making(STATIC_DISTANCES[CO], 1, vehicle.get_velocity()))
-        vehicle.set_target_velocity(decision_making(STATIC_DISTANCES[CO], 1, vehicle.get_velocity()))
+        vehicle.apply_control(controls)
         time.sleep(1)
         start=start+1
+        controls.throttle = controls.throttle*0.60
         CO = (CO + 1) % len(STATIC_DISTANCES)
         # print(vehicle.get_velocity())
     # time.sleep(15)
